@@ -1,0 +1,11 @@
+pandas
+numpy
+matplotlib
+seaborn
+statsmodels
+scikit-learn
+xgboost
+configparser
+nltk
+bs4
+unidecode
