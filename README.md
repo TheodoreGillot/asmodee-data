@@ -12,3 +12,5 @@ cd asmodee-data
 ```bash
 pip install requirements.txt
 ```
+
+## Usage
