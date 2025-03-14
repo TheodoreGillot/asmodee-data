@@ -52,7 +52,6 @@ for chunk in pd.read_csv(csv_file_path, chunksize=chunk_size):
                     G.add_edge(previous_game, game, weight=1)
             previous_game = game if game in top_games else previous_game
         previous_game_by_player[player_id] = previous_game
-    break
 
 # Identification des clusters
 clusters = [{game} for game in G.nodes()]
