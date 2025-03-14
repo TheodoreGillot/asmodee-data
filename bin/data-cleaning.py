@@ -1,79 +1,38 @@
 import configparser
 import pandas as pd
 import os
-import networkx as nx
-import matplotlib.pyplot as plt
 
 config = configparser.ConfigParser()
 config.read('../cfg/config.ini')
 
 data_dir = config['DEFAULT']['data_dir']
-data_filename = config['DEFAULT']['data_filename']
+data_filename = config['DEFAULT']['data']
 
 csv_file_path = os.path.join(data_dir, data_filename)
 
-graph_threshold = 5  
-chunk_size = 1000000  
+chunk_size = 1000000
+pd.set_option('display.max_columns', None)
 
-G = nx.Graph()
-previous_game_by_player = {}
+# Colonnes à conserver
+columns_to_keep = ['player_id', 'start', 'game_name']
 
-for chunk in pd.read_csv(csv_file_path, chunksize=chunk_size):
-    chunk['start'] = pd.to_datetime(chunk['start'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
-    chunk.sort_values(['player_id', 'start'], inplace=True)
+# Créer le fichier de sortie une seule fois
+output_file = '/media/data/asmodee/cleaned_tablesPlayersList-2024.csv'
 
-    for player_id, group in chunk.groupby('player_id'):
-        previous_game = previous_game_by_player.get(player_id)
-        for game in group['game_name']:
-            if previous_game and previous_game != game:
-                if G.has_edge(previous_game, game):
-                    G[previous_game][game]['weight'] += 1
-                else:
-                    G.add_edge(previous_game, game, weight=1)
-            previous_game = game
+# Initialiser une variable pour gérer l'entête du CSV
+first_chunk = True
+chunk_state = 1
 
-        previous_game_by_player[player_id] = previous_game
+for chunk in pd.read_csv(csv_file_path, chunksize=chunk_size, usecols=columns_to_keep):
+    print(f"Processing rows {chunk_state*chunk_size}")
+    chunk_state += 1
+    filtered_chunk = chunk
+    # Filtrer les lignes sans valeurs nulles dans player_gender
+    #filtered_chunk = chunk.dropna(subset=['player_gender'])
 
-weak_edges = [(u, v) for u, v, w in G.edges(data='weight') if w < graph_threshold]
-G.remove_edges_from(weak_edges)
+    # Supprimer la colonne player_gender après filtrage
+    #filtered_chunk = filtered_chunk.drop(columns=['player_gender'])
 
-isolated_nodes = list(nx.isolates(G))
-G.remove_nodes_from(isolated_nodes)
-
-clusters = nx.community.louvain_communities(G, weight='weight')
-graph_threshold = 20  # augmenter selon le besoin
-
-def plot_graph(G, clusters, top_n_labels=50):
-    plt.figure(figsize=(20, 15))
-    pos = nx.spring_layout(G, k=0.3, seed=42)
-
-    colors = plt.cm.tab20(range(len(clusters)))
-    node_colors = {}
-    for idx, cluster in enumerate(clusters):
-        for node in cluster:
-            node_colors[node] = colors[idx]
-
-    node_sizes = [G.degree(node) * 30 for node in G.nodes()]
-
-    nx.draw_networkx_nodes(G, pos,
-                           node_color=[node_colors[node] for node in G.nodes()],
-                           node_size=node_sizes,
-                           alpha=0.8)
-
-    nx.draw_networkx_edges(G, pos, alpha=0.2)
-
-    top_nodes = sorted(G.degree, key=lambda x: x[1], reverse=True)[:top_n_labels]
-    labels = {node: node for node, degree in top_nodes}
-    nx.draw_networkx_labels(G, pos, labels=labels, font_size=10, font_weight='bold')
-
-    plt.title('Graph amélioré des connexions entre Jeux BGA', fontsize=15)
-    plt.axis('off')
-    plt.show()
-
-plot_graph(G, clusters)
-
-cluster_output = {f'Cluster {i+1}': list(cluster) for i, cluster in enumerate(clusters)}
-cluster_df = pd.DataFrame(dict([(k, pd.Series(v)) for k,v in cluster_output.items()]))
-cluster_df.to_csv('game_clusters.csv', index=False)
-
-nx.write_gexf(G, '../bga_games_graph.gexf')
+    # Écrire chaque chunk filtré dans le fichier CSV sans charger tout en mémoire
+    filtered_chunk.to_csv(output_file, mode='w' if first_chunk else 'a', index=False, header=first_chunk)
+    first_chunk = False
