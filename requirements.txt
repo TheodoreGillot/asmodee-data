@@ -9,3 +9,4 @@ configparser
 nltk
 bs4
 unidecode
+networkx
